@@ -1,5 +1,5 @@
 //----------------НАСТРОЙКИ------------------
-#define fuse_delay 3                                   // задержка запала, в секундах (сколько секунд на запал будет подаваться ток)
+#define fuse_delay 2                                   // задержка запала, в секундах (сколько секунд на запал будет подаваться ток)
 
 #define default_minutes 10                             // предустановленные минуты (для режима игры №1)
 #define default_seconds 30                             // предустановленные секунды (для режима игры №1)
@@ -12,10 +12,10 @@
 #include <EEPROM.h>
 
 //------ПОДКЛЮЧЕНИЕ-------
-#define CLK 11
-#define DIO 12
-#define button_pin 3
-#define speaker_pin 2
+#define CLK 10
+#define DIO 11
+#define button_pin 12
+#define speaker_pin 13
 #define relay_pin A0
 //------ПОДКЛЮЧЕНИЕ-------
 
@@ -33,6 +33,7 @@ byte ENTER[] = {_E, _N, _t, _r};
 byte G1[]   = {_empty, _G, _1, _empty};
 byte G2[]   = {_empty, _G, _2, _empty};
 byte G3[]   = {_empty, _G, _3, _empty};
+byte FIST[] = {_F, _1, _S, _t};
 boolean initial, initial2, pass_ent_f, time_ent_f, stopw_m_f, def_f, button_flag, gamemode;
 byte charge_mode;
 byte discharge_time = 5;
@@ -47,8 +48,8 @@ char keys[ROWS][COLS] = {
   {'7','8','9','C'},
   {'*','0','#','D'}
 };
-byte rowPins[ROWS] = {9, 4, 5, 7};                    //Подключены строки (4 пина)
-byte colPins[COLS] = {8, 6, 13, 10};                  //подключены столбцы (4 пина)
+byte rowPins[ROWS] = {9, 8, 7, 6};                    //Подключены строки (4 пина)
+byte colPins[COLS] = {5, 4, 3, 2};                  //подключены столбцы (4 пина)
 
 Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS ); //иниициализировать клавиатуру
 GyverTM1637 disp(CLK, DIO);                           //иниициализировать дисплей disp
@@ -78,6 +79,7 @@ void change_pass() {
   String pass_str;
   for (int i = 0; i <= 3; i++) {                      //приём цифр с клавиатуры
     char key = keypad.waitForKey();
+    tone(speaker_pin, 3000, 100);
     disp.display(i, key - '0');                       //преобразование символов в цифры
     pass_str = pass_str + key;                        //цифры с клавиатуры принимаются строку (STRING)
   }
@@ -124,7 +126,7 @@ void loop() {
     }
     if (key == '*') {                                     //Тестируем исправность реле
       disp.displayByte(TEST);
-      boom();
+      detonation();
       disp.displayByte(tire); 
     }
   }
@@ -146,6 +148,7 @@ void pass_ent() {                                     //ввод пароля н
   String pass_str;
   for (int i = 0; i <= 3; i++) {                      //приём цифр с клавиатуры
     char key = keypad.waitForKey();
+    tone(speaker_pin, 3000, 100);
     disp.display(i, key - '0');                       //преобразование символов в цифры
     pass_str = pass_str + key;
         if (key == 'D') {                             //Планируется, что при нажатии D сбросятся введенные цифры
@@ -177,9 +180,11 @@ void pass_ent_defuse() {                              //ввод пароля н
     disp.point(0);
     char key = keypad.getKey();
     if (key > 0) {
+      tone(speaker_pin, 3000, 100);
       disp.display(i, key - '0');                     //преобразование символов в цифры
       pass_str = pass_str + key;                      //цифры с клавиатуры принимаются строку (STRING)
       i++;
+      
     } 
   }
   pass_int = pass_str.toInt();                        //преобразование строки в 4х значное число (INT)
@@ -202,6 +207,7 @@ void time_ent() {
     String time_str;
     for (int i = 0; i <= 3; i++) {
       char key = keypad.waitForKey();
+      tone(speaker_pin, 1000, 100);
       disp.display(i, key - '0');
       time_str = time_str + key;
     }
@@ -243,7 +249,7 @@ void stopw_m() {                                      //обратный отс�
   }
 
   switch (charge_mode) {
-    case 0: disp.displayClockScroll(minutes, seconds, 25);
+    case 0: disp.displayClockTwist(minutes, seconds, 25);
       break;
     case 1: disp.point(0); 
       disp.displayByte(BOOM); 
@@ -268,6 +274,8 @@ void get_time() {                                   //функция тайме�
   if (millis() - last_time >= 500) {
     if (minutes == 0 && seconds <= 59) {            //если минут 0 и секунд меньше 15
       tone(speaker_pin, 4000, 100);                 //пищать!
+      delay(200);
+      tone(speaker_pin, 4000, 100);
     }
     last_time = millis();
     milseconds++;
@@ -295,16 +303,19 @@ void get_time() {                                   //функция тайме�
 
                                                      // в случае взрыва
 void boom() {
+  detonation();
+  sound_boom(5000);
+  sound_siren();
+}
+
+
+void detonation() {
   digitalWrite(relay_pin, !relay_state);             //дать ток на реле
-  tone(speaker_pin, 50, 1000);                       //ОРАТЬ типо БЩЩЩЩ (звук взрыва)
   delay((int)fuse_delay * 1000);                     //задержка (чтобы запал прогрелся)
   digitalWrite(relay_pin, relay_state);              //убрать ток с реле
 }
-
                                                      // в случае обезвреживания, играть победное ПИП ПИП ПИП
 void defuse() {
-  tone(speaker_pin, 4000, 100);
-  delay(200);
   tone(speaker_pin, 4000, 100);
   delay(200);
   tone(speaker_pin, 4000, 100);
@@ -324,4 +335,28 @@ void EEPROM_int_write(int addr, int num) {
   byte raw[2];
   (int&)raw = num;
   for (byte i = 0; i < 2; i++) EEPROM.write(addr + i, raw[i]);
+}
+
+void sound_siren() { //This function produces the 3rd siren (AMBULANCE sound).tone(buzz,440,200);
+  int i=0;
+  int j=0;
+  for (j=0;j<10;j++) {
+    for(i=1200;i<2800;i++){
+      tone(speaker_pin,i,100);
+    }
+    for(i=2800;i>1200;i--){
+      tone(speaker_pin,i,100);
+    }
+  }
+}
+
+void sound_boom(int duration)  {
+int freq = 800;
+int low = freq - 300;
+int high = freq + 300;
+unsigned long time = millis();
+while(millis() - time <= duration)  {
+tone(speaker_pin, random(low, high),100);
+}
+//noTone(speaker_pin);
 }
